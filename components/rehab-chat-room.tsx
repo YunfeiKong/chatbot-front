@@ -34,7 +34,7 @@ export default function RehabChatRoom() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'consultant',
-      content: '您好，我是您的运动评估顾问，请问有什么可以帮您的吗？'
+      content: '您好，我是您的运动评估顾问，请问有什么可以帮您的吗？可以选择【MORSE问答】或【运动能力得分评估】，或者可以直接与我聊聊'
     }
   ]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -43,7 +43,7 @@ export default function RehabChatRoom() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [totalScore, setTotalScore] = useState<number | null>(null);
-  const [mode, setMode] = useState<'morse' | 'llm_chat' | 'mmse' | null>(null);
+  const [mode, setMode] = useState<'morse' | 'llm_chat' | 'upload' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -61,10 +61,10 @@ export default function RehabChatRoom() {
           console.error('Error starting session:', error);
         }
       };
-      if (messages.length !== 1) {
-        alert("确定要进入MORSE评估吗，历史对话将清除！");
-      }
       startSession();
+    }
+    if (mode === 'upload') {
+      setMessages([{ role: 'consultant', content: '请上传你的运动能力评估结果表' }])
     }
   }, [mode]);
 
@@ -78,7 +78,12 @@ export default function RehabChatRoom() {
 
       if (question) {
         setCurrentQuestion(question);
+
         setMessages(prev => [...prev, { role: 'consultant', content: question.content }]);
+        const audioURL = await performTTS(question.content)
+        if (audioURL) {
+          playAudio(audioURL)
+        }
       } else if (total_score !== undefined) {
         setTotalScore(total_score);
         setMessages(prev => [...prev, { role: 'consultant', content: `总得分: ${total_score}` }]);
@@ -89,6 +94,7 @@ export default function RehabChatRoom() {
 
     setInputText('');
   };
+
 
   const handleNormalSubmit = async () => {
     if (!inputText.trim()) return;
@@ -212,7 +218,7 @@ export default function RehabChatRoom() {
     if (event.key === 'Enter') {
       if (mode === 'morse') {
         handleAnswerSubmit();
-      } else if (mode === 'llm_chat') {
+      } else if (mode === 'llm_chat' || mode === 'upload') {
         handleNormalSubmit();
       }
       setInputText('');
@@ -223,11 +229,11 @@ export default function RehabChatRoom() {
     <div className="min-h-screen bg-gray-100 py-8">
       <Card className="w-full max-w-3xl mx-auto">
         <CardContent className="p-6">
-          <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">老年人运动评估咨询聊天平台</h1>
+          <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">老年人运动评估咨询系统</h1>
           <div className="flex justify-center mb-4">
-            <Button onClick={() => setMode('morse')} className="mr-2">MORSE 问答评估</Button>
-            <Button onClick={() => setMode('llm_chat')} className="mr-2">得分评估</Button>
-            <Button onClick={() => setMode('mmse')} className="mr-2">MMSE 问答评估</Button>
+            <Button onClick={() => setMode('morse')} className="mr-2">MORSE问答评估</Button>
+            <Button onClick={() => setMode('upload')} className="mr-2">运动能力得分评估</Button>
+            <Button onClick={() => setMode('upload')} className="mr-2">MMSE问答评估[待开发]</Button>
           </div>
           <ScrollArea className="h-[400px] pr-4 mb-4" ref={scrollAreaRef}>
             {messages.map((message, index) => (
@@ -278,27 +284,46 @@ export default function RehabChatRoom() {
             <Button onClick={handleVoiceInput} variant="outline" size="icon" className="mr-2" aria-label={isRecording ? "停止录音" : "开始录音"}>
               {isRecording ? <StopCircle className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="icon" className="mr-2" aria-label="上传文件">
-              <Upload className="h-4 w-4" />
-            </Button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-              aria-hidden="true"
-            />
             {mode === 'morse' && (
-              <Button onClick={handleAnswerSubmit}>
-                <Send className="h-4 w-4 mr-2" />
-                发送
-              </Button>
+              <div>
+                <Button onClick={handleAnswerSubmit}>
+                  <Send className="h-4 w-4 mr-2" />
+                  发送
+                </Button>
+              </div>
+
             )}
             {mode === 'llm_chat' && (
-              <Button onClick={handleNormalSubmit}>
-                <Send className="h-4 w-4 mr-2" />
-                发送
-              </Button>
+              <div>
+                <Input
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="输入您的问题..."
+                  className="flex-grow mr-2"
+                />
+                <Button onClick={handleVoiceInput} variant="outline" size="icon" className="mr-2" aria-label={isRecording ? "停止录音" : "开始录音"}>
+                  {isRecording ? <StopCircle className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
+                <Button onClick={handleNormalSubmit}>
+                  <Send className="h-4 w-4 mr-2" />
+                  发送
+                </Button>
+              </div>
+            )}
+            {mode === 'upload' && (
+              <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                  aria-hidden="true"
+                />
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="icon" className="mr-2" aria-label="上传文件">
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>
