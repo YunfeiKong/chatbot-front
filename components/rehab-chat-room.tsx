@@ -43,7 +43,7 @@ export default function RehabChatRoom() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [totalScore, setTotalScore] = useState<number | null>(null);
-  const [mode, setMode] = useState<'morse' | 'llm_chat' | 'upload' | null>(null);
+  const [mode, setMode] = useState<'morse' | 'llm_chat' | 'upload'>('llm_chat');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -68,10 +68,21 @@ export default function RehabChatRoom() {
     }
   }, [mode]);
 
+  const handleSubmit = async (m: string) => {
+    console.log(m);
+    
+    if (m === 'morse') {
+      handleAnswerSubmit()
+    } else {
+      handleNormalSubmit()
+    }
+  }
+
   const handleAnswerSubmit = async () => {
     if (!inputText.trim() || !currentQuestion) return;
 
     setMessages(prev => [...prev, { role: 'visitor', content: inputText }]);
+    setInputText('');
     try {
       const response = await axios.post('http://172.16.113.144:8086/answer', { answer: inputText });
       const { question, total_score } = response.data;
@@ -92,7 +103,7 @@ export default function RehabChatRoom() {
       console.error('Error submitting answer:', error);
     }
 
-    setInputText('');
+    
   };
 
 
@@ -100,6 +111,7 @@ export default function RehabChatRoom() {
     if (!inputText.trim()) return;
 
     setMessages(prev => [...prev, { role: 'visitor', content: inputText }]);
+    setInputText('');
     try {
       const response = await axios.post('http://172.16.113.144:8086/api/llm_chat', { text: inputText });
       const { llm_response } = response.data;
@@ -112,7 +124,6 @@ export default function RehabChatRoom() {
       console.error('Error in LLM chat:', error);
     }
 
-    setInputText('');
   };
 
   const startRecording = () => {
@@ -233,7 +244,6 @@ export default function RehabChatRoom() {
           <div className="flex justify-center mb-4">
             <Button onClick={() => setMode('morse')} className="mr-2">MORSE问答评估</Button>
             <Button onClick={() => setMode('upload')} className="mr-2">运动能力得分评估</Button>
-            <Button onClick={() => setMode('upload')} className="mr-2">MMSE问答评估[待开发]</Button>
           </div>
           <ScrollArea className="h-[400px] pr-4 mb-4" ref={scrollAreaRef}>
             {messages.map((message, index) => (
@@ -268,7 +278,7 @@ export default function RehabChatRoom() {
             ))}
             <div ref={endOfMessagesRef} />
           </ScrollArea>
-          {totalScore !== null && (
+          {totalScore !== null && mode === 'morse' && (
             <div className="mt-4">
               <p className="text-xl font-bold">总得分: {totalScore}</p>
             </div>
@@ -284,47 +294,24 @@ export default function RehabChatRoom() {
             <Button onClick={handleVoiceInput} variant="outline" size="icon" className="mr-2" aria-label={isRecording ? "停止录音" : "开始录音"}>
               {isRecording ? <StopCircle className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
-            {mode === 'morse' && (
-              <div>
-                <Button onClick={handleAnswerSubmit}>
-                  <Send className="h-4 w-4 mr-2" />
-                  发送
-                </Button>
-              </div>
+            <Button onClick={() => handleSubmit(mode)}>
+              <Send className="h-4 w-4 mr-2" />
+              发送
+            </Button>
 
-            )}
-            {mode === 'llm_chat' && (
-              <div>
-                <Input
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="输入您的问题..."
-                  className="flex-grow mr-2"
-                />
-                <Button onClick={handleVoiceInput} variant="outline" size="icon" className="mr-2" aria-label={isRecording ? "停止录音" : "开始录音"}>
-                  {isRecording ? <StopCircle className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </Button>
-                <Button onClick={handleNormalSubmit}>
-                  <Send className="h-4 w-4 mr-2" />
-                  发送
-                </Button>
-              </div>
-            )}
-            {mode === 'upload' && (
-              <div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                  aria-hidden="true"
-                />
-                <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="icon" className="mr-2" aria-label="上传文件">
-                  <Upload className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+              aria-hidden="true"
+            />
+            <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="icon" className="mr-2" aria-label="上传文件">
+              <Upload className="h-4 w-4" />
+            </Button>
+
+
           </div>
         </CardContent>
       </Card>
