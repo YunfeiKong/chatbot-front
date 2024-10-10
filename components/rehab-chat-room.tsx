@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Mic, Send, Upload, Play, Pause, StopCircle } from 'lucide-react';
 import axios from 'axios';
-import { performTTS } from './speech-utils';
+import config from './config'; // 引用配置文件
 
 declare global {
   interface Window {
@@ -53,10 +53,11 @@ export default function RehabChatRoom() {
     if (mode === 'morse') {
       const startSession = async () => {
         try {
-          const response = await axios.post('http://172.16.113.144:8086/start');
+          const response = await axios.post(`${config.apiBaseUrl}${config.startSessionEndpoint}`);
           const { question } = response.data;
           setCurrentQuestion(question);
           setMessages([{ role: 'consultant', content: question.content }]);
+          performTTS(question.content)
         } catch (error) {
           console.error('Error starting session:', error);
         }
@@ -69,7 +70,6 @@ export default function RehabChatRoom() {
   }, [mode]);
 
   const handleSubmit = async (m: string) => {
-    console.log(m);
     
     if (m === 'morse') {
       handleAnswerSubmit()
@@ -84,7 +84,7 @@ export default function RehabChatRoom() {
     setMessages(prev => [...prev, { role: 'visitor', content: inputText }]);
     setInputText('');
     try {
-      const response = await axios.post('http://172.16.113.144:8086/answer', { answer: inputText });
+      const response = await axios.post(`${config.apiBaseUrl}${config.answerEndpoint}`, { answer: inputText });
       const { question, total_score } = response.data;
 
       if (question) {
@@ -113,10 +113,10 @@ export default function RehabChatRoom() {
     setMessages(prev => [...prev, { role: 'visitor', content: inputText }]);
     setInputText('');
     try {
-      const response = await axios.post('http://172.16.113.144:8086/api/llm_chat', { text: inputText });
+      const response = await axios.post(`${config.apiBaseUrl}${config.llmChatEndpoint}`, { text: inputText });
       const { llm_response } = response.data;
+      setMessages(prev => [...prev, { role: 'consultant', content: llm_response }]);
       const audioUrl = await performTTS(llm_response);
-      setMessages(prev => [...prev, { role: 'consultant', content: llm_response, audioUrl }]);
       if (audioUrl) {
         playAudio(audioUrl);
       }
@@ -174,23 +174,20 @@ export default function RehabChatRoom() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log('File uploaded:', file.name);
-
       setMessages(prev => [...prev, { role: 'visitor', content: '请帮我进行得分评估' }]);
       const formData = new FormData();
       formData.append('file', file);
 
       try {
-        const response = await axios.post('http://172.16.113.144:8086/api/upload', formData, {
+        const response = await axios.post(`${config.apiBaseUrl}${config.uploadEndpoint}`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-
-        console.log('Response from server:', response.data);
         const { llm_response } = response.data;
+  
+        setMessages(prev => [...prev, { role: 'consultant', content: llm_response }]);
         const audioUrl = await performTTS(llm_response);
-        setMessages(prev => [...prev, { role: 'consultant', content: llm_response, audioUrl }]);
         if (audioUrl) {
           playAudio(audioUrl);
         }
@@ -317,4 +314,30 @@ export default function RehabChatRoom() {
       </Card>
     </div>
   );
+}
+
+// 使用 Web Speech API 实现 TTS
+export async function performTTS(text: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) {
+      reject(new Error('Web Speech API is not supported in this browser.'));
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN'; // 设置语言为中文
+    utterance.rate = 1; // 设置语速
+    utterance.pitch = 1; // 设置音调
+    utterance.volume = 1; // 设置音量
+
+    utterance.onend = () => {
+      resolve('TTS completed successfully.');
+    };
+
+    utterance.onerror = (event) => {
+      reject(new Error(`TTS Error: ${event.error}`));
+    };
+
+    window.speechSynthesis.speak(utterance);
+  });
 }
