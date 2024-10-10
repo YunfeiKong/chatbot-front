@@ -91,10 +91,7 @@ export default function RehabChatRoom() {
         setCurrentQuestion(question);
 
         setMessages(prev => [...prev, { role: 'consultant', content: question.content }]);
-        const audioURL = await performTTS(question.content)
-        if (audioURL) {
-          playAudio(audioURL)
-        }
+        performTTS(question.content)
       } else if (total_score !== undefined) {
         setTotalScore(total_score);
         setMessages(prev => [...prev, { role: 'consultant', content: `总得分: ${total_score}` }]);
@@ -116,10 +113,8 @@ export default function RehabChatRoom() {
       const response = await axios.post(`${config.apiBaseUrl}${config.llmChatEndpoint}`, { text: inputText });
       const { llm_response } = response.data;
       setMessages(prev => [...prev, { role: 'consultant', content: llm_response }]);
-      const audioUrl = await performTTS(llm_response);
-      if (audioUrl) {
-        playAudio(audioUrl);
-      }
+      performTTS(llm_response);
+
     } catch (error) {
       console.error('Error in LLM chat:', error);
     }
@@ -187,10 +182,7 @@ export default function RehabChatRoom() {
         const { llm_response } = response.data;
   
         setMessages(prev => [...prev, { role: 'consultant', content: llm_response }]);
-        const audioUrl = await performTTS(llm_response);
-        if (audioUrl) {
-          playAudio(audioUrl);
-        }
+        performTTS(llm_response);
       } catch (error) {
         console.error('Error in file upload:', error);
       }
